@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>이번 주말 뭐하지</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--bg:#fbfaf8;--card:#fff;--fg:#1a1a1a;--dim:#6b6b6b;--line:#e6e3dd;--accent:#6270c7;--chip:#f0ede8;
+  --font:"NanumSquare","NanumSquareRound","고운돋움","Goun Dotum",-apple-system,"Segoe UI","Malgun Gothic",sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#14140f;--card:#1e1e19;--fg:#f0eee9;--dim:#9a978f;--line:#32322b;--accent:#9aa8f5;--chip:#2a2a23}}
+*{box-sizing:border-box;font-family:var(--font)}
+body{margin:0;background:var(--bg);color:var(--fg);font-size:16px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:30px;margin:0 0 6px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:0 0 26px}
+.roll{background:var(--accent);color:#fff;border:0;border-radius:12px;padding:15px 26px;
+  font-size:17px;font-weight:700;cursor:pointer;font-family:inherit}
+.roll:active{transform:translateY(1px)}
+#picked{margin:24px 0 0;display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+#picked:empty{display:none}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:34px 0 20px;
+  padding-top:26px;border-top:1px solid var(--line)}
+select{background:var(--chip);color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:7px 10px;font-family:inherit;font-size:14px}
+label.tog{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--dim);cursor:pointer}
+#grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.c{background:var(--tint,var(--card));border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  display:flex;flex-direction:column}
+@media(prefers-color-scheme:dark){.c{background:color-mix(in srgb,var(--tint,var(--card)) 22%,var(--card))}}
+.c.hl{border-color:var(--accent);border-width:2px}
+.c img{width:100%;aspect-ratio:3/4;object-fit:cover;background:var(--chip);display:block}
+.c .top{height:104px;display:flex;align-items:center;justify-content:center}
+.c .top svg{width:60px;height:60px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.12))}
+.c .body{padding:14px 15px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.t{font-size:11px;padding:2px 7px;border-radius:5px;background:var(--chip);color:var(--dim)}
+.t.free{background:var(--accent);color:#fff}
+.c h3{font-size:16px;margin:2px 0 0;line-height:1.35}
+.meta{font-size:13px;color:var(--dim);margin:0}
+.c a{margin-top:auto;padding-top:8px;font-size:13px;color:var(--accent);text-decoration:none}
+.none{color:var(--dim);padding:40px 0}
+.mapwrap{margin:18px 0 24px}
+#map{height:260px;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.mapinfo{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--dim)}
+.mapinfo button{background:#ebf3f9;color:#332f45;border:none;border-radius:999px;
+  padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+  box-shadow:0 1px 3px rgba(0,0,0,.1);transition:transform .12s}
+.mapinfo button:hover{transform:translateY(-1px)}
+.mapinfo button:active{transform:translateY(0) scale(.96)}
+.mapinfo button.minus{background:#edebf9}
+.mapinfo button.plus{background:#f9ebf3}
+.radius{display:flex;align-items:center;gap:6px}
+.stations{display:flex;gap:8px;flex-wrap:wrap}
+.stations button{background:#d6f4f2}
+.stations button:nth-child(2){background:#f9eceb}
+.stations button:nth-child(3){background:#ebf3f9}
+.stations button:nth-child(4){background:#edebf9}
+.stations button:nth-child(5){background:#f9ebf3}
+.stations button:nth-child(6){background:#d6f4f2}
+.stations button.on{box-shadow:0 0 0 2px var(--accent) inset}
+</style></head><body><div class="wrap">
+<h1>이번 주말 뭐하지</h1>
+<p class="sub">08월 01일(토) ~ 08월 02일(일) · <span id="originText">가락시장역(기본값)</span> 기준 <span id="radiusText">20</span>km 안 · 총 <span id="count">9</span>개 · 실제 행사(웹 검색으로 확인, 서울시 API 미사용)</p>
+<div class="mapwrap">
+  <div id="map"></div>
+  <div class="mapinfo">지도를 클릭하면 그 지점이 새 기준 위치가 됩니다.
+    <span id="stations" class="stations"></span>
+    <span class="radius">반경 <b id="radiusLabel">20</b>km
+      <button class="minus" onclick="adjustRadius(-5)">−5km</button>
+      <button class="plus" onclick="adjustRadius(5)">+5km</button>
+    </span>
+  </div>
+</div>
+<button class="roll" onclick="roll()">🎲 뭐할지 골라줘</button>
+<div id="picked"></div>
+<div class="bar">
+  <label class="tog"><input type="checkbox" id="freeonly" onchange="render()">무료만</label>
+  <select id="sort" onchange="render()">
+    <option value="dist">가까운 순</option>
+    <option value="title">이름 순</option>
+  </select>
+</div>
+<div id="grid"></div>
+</div><script>
+const EVENTS = [{"title": "한강페스티벌_여름 - 한강뮤직퐁당", "cat": "콘서트", "gu": "광진구", "place": "뚝섬한강공원 물놀이장", "when": "2026-08-01~2026-08-02", "target": "누구나(물놀이장 이용객)", "fee": "무료", "free": true, "img": "", "link": "https://hangang.seoul.go.kr", "ticket": "", "lat": 37.5297, "lon": 127.0668}, {"title": "서울일러스트레이션페어 V.21", "cat": "전시/미술", "gu": "강남구", "place": "코엑스 C홀", "when": "2026-07-30~2026-08-02", "target": "누구나", "fee": "성인 15,000원 · 청소년 9,000원", "free": false, "img": "", "link": "https://seoulillustrationfair.co.kr", "ticket": "예매필요", "lat": 37.5115, "lon": 127.0595}, {"title": "DDP 바캉스: 뮤직페스티벌", "cat": "축제-기타", "gu": "중구", "place": "동대문디자인플라자(DDP) 어울림광장", "when": "2026-07-31~2026-08-02", "target": "누구나", "fee": "무료", "free": true, "img": "", "link": "https://www.ddp.or.kr", "ticket": "", "lat": 37.5665, "lon": 127.0092}, {"title": "어메이징 타일랜드: 태국미술명품전", "cat": "전시/미술", "gu": "용산구", "place": "국립중앙박물관 특별전시실1", "when": "2026-06-23~2026-09-06", "target": "누구나", "fee": "무료(7.29~8.2 한정 무료개방, 이후 유료)", "free": true, "img": "", "link": "https://www.museum.go.kr", "ticket": "현장방문", "lat": 37.5240, "lon": 126.9803}, {"title": "2026 서울썸머비치", "cat": "축제-기타", "gu": "종로구", "place": "광화문광장·세종로공원", "when": "2026-07-20~2026-08-09", "target": "누구나", "fee": "무료", "free": true, "img": "", "link": "https://mediahub.seoul.go.kr/archives/2018810", "ticket": "", "lat": 37.5718, "lon": 126.9769}, {"title": "한여름의 과학관", "cat": "교육/체험", "gu": "노원구", "place": "서울시립과학관", "when": "2026-07-29~2026-08-02", "target": "누구나(가족)", "fee": "무료", "free": true, "img": "", "link": "https://science.seoul.go.kr", "ticket": "", "lat": 37.6293, "lon": 127.0623}, {"title": "이머시브 뮤지컬 《고래밥-바다 대운동회》", "cat": "뮤지컬/오페라", "gu": "마포구", "place": "마포아트센터 아트홀맥", "when": "2026-07-24~2026-08-16", "target": "20개월 이상", "fee": "유료(가격은 홈페이지 확인)", "free": false, "img": "", "link": "https://www.mfac.or.kr", "ticket": "예매필요", "lat": 37.5568, "lon": 126.9106}, {"title": "쉬엄쉬엄 모닝: 광진교 코스", "cat": "캠페인", "gu": "광진구", "place": "광나루한강공원·광진교", "when": "2026-08-02~2026-08-02", "target": "누구나", "fee": "무료", "free": true, "img": "", "link": "https://hangang.seoul.go.kr", "ticket": "", "lat": 37.5445, "lon": 127.1035}, {"title": "패브릭오브제극 《코 잃은 코끼리 코바》", "cat": "아동", "gu": "서초구", "place": "예술의전당 자유소극장", "when": "2026-07-30~2026-08-09", "target": "어린이·가족", "fee": "유료(가격은 홈페이지 확인)", "free": false, "img": "", "link": "https://www.sac.or.kr", "ticket": "예매필요", "lat": 37.4783, "lon": 127.0128}];
+let RADIUS_KM = 20;
+const STATIONS = [
+  { label: "가락시장역", short: "가락", lat: 37.4926, lon: 127.1184 },
+  { label: "잠실역", short: "잠실", lat: 37.5133, lon: 127.1001 },
+  { label: "강남역", short: "강남", lat: 37.4979, lon: 127.0276 },
+  { label: "마곡나루역", short: "마곡", lat: 37.5601, lon: 126.8256 },
+  { label: "종각역", short: "종로", lat: 37.5704, lon: 126.9831 },
+  { label: "용산역", short: "용산", lat: 37.5299, lon: 126.9648 }
+];
+let ORIGIN = { ...STATIONS[0] };
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371.0088 * Math.asin(Math.sqrt(h));
+}
+const PALETTE = ["#d6f4f2", "#f9eceb", "#ebf3f9", "#edebf9", "#f9ebf3"];
+const BADGE_COLORS = ["#5b4fcf", "#e6553f", "#1f9d8a", "#e0a72e", "#3d7de0",
+  "#d8477a", "#2fa84f", "#a24fd8", "#e0793d", "#2f8fbf"];
+const GLYPHS = {
+  "콘서트": '<rect x="28" y="14" width="8" height="18" rx="4"/><path d="M20 28a12 12 0 0024 0"/><line x1="32" y1="40" x2="32" y2="48"/><line x1="24" y1="48" x2="40" y2="48"/>',
+  "전시/미술": '<rect x="14" y="16" width="36" height="26"/><circle cx="23" cy="25" r="3" fill="#fff"/><path d="M16 38l9-10 6 6 8-10 9 14"/>',
+  "축제-기타": '<circle cx="32" cy="28" r="3" fill="#fff"/><path d="M32 28V12M32 28L20 18M32 28L44 18M32 28L16 28M32 28L48 28M32 28L20 40M32 28L44 40"/>',
+  "교육/체험": '<path d="M14 26l18-9 18 9-18 9z"/><path d="M23 30v9c0 3.5 18 3.5 18 0v-9"/><line x1="46" y1="27" x2="46" y2="40"/>',
+  "아동": '<circle cx="32" cy="24" r="11"/><path d="M32 35l-3 6h6z"/><line x1="32" y1="41" x2="32" y2="50"/>',
+  "무용": '<circle cx="32" cy="16" r="4" fill="#fff"/><line x1="32" y1="20" x2="32" y2="34"/><line x1="32" y1="24" x2="21" y2="34"/><line x1="32" y1="24" x2="45" y2="30"/><line x1="32" y1="34" x2="23" y2="48"/><line x1="32" y1="34" x2="43" y2="46"/>',
+  "국악": '<path d="M18 18h28l-6 14h-16z"/><path d="M18 46h28l-6-14h-16z"/><line x1="20" y1="22" x2="24" y2="42"/><line x1="44" y1="22" x2="40" y2="42"/>',
+  "연극": '<circle cx="24" cy="32" r="12"/><circle cx="40" cy="32" r="12"/><path d="M19 36q5 4 10 0"/><path d="M35 28q5-4 10 0"/>',
+  "영화": '<circle cx="32" cy="32" r="16"/><circle cx="32" cy="20" r="3" fill="#fff"/><circle cx="44" cy="32" r="3" fill="#fff"/><circle cx="32" cy="44" r="3" fill="#fff"/><circle cx="20" cy="32" r="3" fill="#fff"/>',
+  "독주/독창회": '<circle cx="24" cy="42" r="5" fill="#fff"/><line x1="29" y1="42" x2="29" y2="16"/><path d="M29 16l12 4v6"/>',
+  "뮤지컬/오페라": '<path d="M16 16v32M48 16v32"/><path d="M16 16c8 6 8 26 0 32M48 16c-8 6-8 26 0 32"/>',
+  "마켓": '<path d="M20 24h24l-2 22a4 4 0 01-4 4H26a4 4 0 01-4-4z"/><path d="M24 24v-5a8 8 0 0116 0v5"/>',
+  "스포츠": '<circle cx="32" cy="32" r="16"/><path d="M32 22l7 5-3 8h-8l-3-8z" fill="#fff"/>',
+  "도서/문학": '<path d="M14 20c8-4 14-4 18 0v28c-4-4-10-4-18 0z"/><path d="M50 20c-8-4-14-4-18 0v28c4-4 10-4 18 0z"/>',
+  "사진": '<rect x="14" y="22" width="36" height="24" rx="4"/><path d="M23 22l3-6h12l3 6"/><circle cx="32" cy="34" r="8"/>',
+  "건축": '<rect x="20" y="16" width="24" height="32"/><line x1="20" y1="24" x2="44" y2="24"/><line x1="20" y1="32" x2="44" y2="32"/><line x1="20" y1="40" x2="44" y2="40"/><line x1="28" y1="16" x2="28" y2="48"/><line x1="36" y1="16" x2="36" y2="48"/>',
+  "패션": '<path d="M32 15a4 4 0 10-4 4c0 2 2 3 4 4"/><path d="M32 23l-18 10 4 6 4-2v13h20V37l4 2 4-6z"/>',
+  "요리/음식": '<path d="M20 32a8 8 0 0114-6 7 7 0 019 4 6 6 0 013 8H18a6 6 0 012-6z"/><rect x="18" y="38" width="28" height="6" rx="2"/>',
+  "반려동물": '<circle cx="23" cy="24" r="4" fill="#fff"/><circle cx="33" cy="19" r="4" fill="#fff"/><circle cx="42" cy="25" r="4" fill="#fff"/><ellipse cx="32" cy="39" rx="11" ry="8" fill="#fff"/>',
+  "자연/생태": '<path d="M20 44c-4-16 8-28 24-28-2 16-10 28-24 28z"/><path d="M22 42c6-10 12-16 20-22"/>',
+  "캠페인": '<path d="M16 27v10l8 2v-14z"/><path d="M24 25l16-8v30l-16-8"/><path d="M40 24c4 2 4 12 0 14"/>',
+  "시민화합": '<circle cx="24" cy="22" r="6"/><circle cx="40" cy="22" r="6"/><path d="M14 46c0-9 7-14 10-14M50 46c0-9-7-14-10-14"/>',
+  "청소년": '<rect x="20" y="22" width="24" height="26" rx="6"/><path d="M26 22v-4a6 6 0 0112 0v4"/><rect x="27" y="30" width="10" height="8" rx="2" fill="#fff"/>',
+  "클래식": '<path d="M28 14c-4 4-4 10 0 14-4 4-4 10 0 14h8c4-4 4-10 0-14 4-4 4-10 0-14z"/><line x1="32" y1="14" x2="32" y2="9"/><line x1="27" y1="9" x2="37" y2="9"/>',
+  "축제-전통/역사": '<path d="M14 34l18-16 18 16"/><path d="M20 34h24v10H20z"/><line x1="32" y1="18" x2="32" y2="12"/>',
+  "축제-문화/예술": '<path d="M32 14a18 16 0 100 32c3 0-1-4 3-4h5a10 10 0 0010-10c0-10-8-18-18-18z"/><circle cx="24" cy="26" r="2.5" fill="#fff"/><circle cx="32" cy="22" r="2.5" fill="#fff"/><circle cx="40" cy="26" r="2.5" fill="#fff"/>',
+  "박람회": '<line x1="20" y1="14" x2="20" y2="50"/><path d="M20 16h20l-6 8 6 8H20z" fill="#fff"/>',
+  "워크숍": '<circle cx="32" cy="26" r="12"/><line x1="27" y1="42" x2="37" y2="42"/><line x1="28" y1="47" x2="36" y2="47"/><line x1="32" y1="14" x2="32" y2="10"/>',
+  "야시장": '<path d="M40 16a14 14 0 100 28 11 11 0 010-28z"/><circle cx="18" cy="42" r="2" fill="#fff"/><circle cx="26" cy="47" r="2" fill="#fff"/><circle cx="36" cy="49" r="2" fill="#fff"/>',
+  "기타": '<rect x="16" y="28" width="32" height="20" rx="2"/><rect x="16" y="22" width="32" height="8" rx="2"/><line x1="32" y1="22" x2="32" y2="48"/><path d="M32 22c-3-8-13-8-13-2 0 3.5 5 3.5 13 2z"/><path d="M32 22c3-8 13-8 13-2 0 3.5-5 3.5-13 2z"/>'
+};
+const GLYPH_KEYS = Object.keys(GLYPHS);
+
+function iconFor(cat) {
+  let idx = GLYPH_KEYS.indexOf(cat);
+  if (idx === -1) idx = GLYPH_KEYS.indexOf("기타");
+  const tilt = idx % 2 === 0 ? -6 : 6;
+  const bg = BADGE_COLORS[idx % BADGE_COLORS.length];
+  const glyph = GLYPHS[cat] || GLYPHS["기타"];
+  return `<svg viewBox="0 0 64 64"><g transform="rotate(${tilt} 32 32)">
+    <rect x="6" y="6" width="52" height="52" rx="16" fill="${bg}"/></g>
+    <g fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></svg>`;
+}
+
+function visible() {
+  const free = document.getElementById("freeonly").checked;
+  let list = EVENTS
+    .map(e => ({ ...e, dist: e.lat == null ? null : haversine(ORIGIN.lat, ORIGIN.lon, e.lat, e.lon) }))
+    .filter(e => e.dist === null || e.dist <= RADIUS_KM)
+    .filter(e => !free || e.free);
+  if (document.getElementById("sort").value === "title")
+    list = [...list].sort((a, b) => a.title.localeCompare(b.title, "ko"));
+  else
+    list = [...list].sort((a, b) => (a.dist ?? Infinity) - (b.dist ?? Infinity));
+  return list;
+}
+
+function card(e, hl, i) {
+  const media = e.img ? `<img src="${e.img}" alt="" loading="lazy">`
+    : `<div class="top">${iconFor(e.cat)}</div>`;
+  const dist = e.dist === null ? "위치 미정" : e.dist.toFixed(1) + "km";
+  const tags = [e.cat, e.free ? "무료" : e.fee].filter(Boolean)
+    .map((t, i) => `<span class="t${i === 1 && e.free ? " free" : ""}">${t}</span>`).join("");
+  const link = e.link ? `<a href="${e.link}" target="_blank" rel="noopener">자세히 보기 →</a>` : "";
+  const route = e.lat == null ? "" :
+    `<a href="${kakaoRouteUrl(e)}" target="_blank" rel="noopener">카카오맵으로 길찾기 →</a>`;
+  return `<div class="c${hl ? " hl" : ""}" style="--tint:${PALETTE[i % PALETTE.length]}">${media}<div class="body">
+    <div class="tags">${tags}</div><h3>${e.title}</h3>
+    <p class="meta">${[e.gu, e.place].filter(Boolean).join(" · ")}</p>
+    <p class="meta">${dist} · ${e.when}</p>${route}${link}</div></div>`;
+}
+
+function kakaoRouteUrl(e) {
+  const from = encodeURIComponent(ORIGIN.label.replace(/\(.*?\)/g, ""));
+  const to = encodeURIComponent(e.place || e.title);
+  return `https://map.kakao.com/link/from/${from},${ORIGIN.lat},${ORIGIN.lon}/to/${to},${e.lat},${e.lon}`;
+}
+
+function render() {
+  const list = visible();
+  document.getElementById("grid").innerHTML = list.length
+    ? list.map((e, i) => card(e, false, i)).join("")
+    : `<p class="none">조건에 맞는 행사가 없다. 필터를 풀어보자.</p>`;
+  document.getElementById("originText").textContent = ORIGIN.label;
+  document.getElementById("count").textContent = list.length;
+  document.getElementById("radiusText").textContent = RADIUS_KM;
+  document.getElementById("radiusLabel").textContent = RADIUS_KM;
+  document.getElementById("stations").innerHTML = STATIONS.map(s =>
+    `<button class="${ORIGIN.label === s.label ? "on" : ""}" onclick="selectStation('${s.label}')">${s.short}</button>`
+  ).join("");
+  syncMapCircle();
+}
+
+let circle;
+function syncMapCircle() {
+  if (!map) return;
+  if (!circle) {
+    circle = L.circle([ORIGIN.lat, ORIGIN.lon], {
+      radius: RADIUS_KM * 1000, color: "#d6f4f2", weight: 3, fillColor: "#d6f4f2", fillOpacity: .3
+    }).addTo(map);
+  } else {
+    circle.setLatLng([ORIGIN.lat, ORIGIN.lon]).setRadius(RADIUS_KM * 1000);
+  }
+}
+
+function adjustRadius(delta) {
+  RADIUS_KM = Math.min(100, Math.max(5, RADIUS_KM + delta));
+  render();
+  if (map && circle) map.fitBounds(circle.getBounds(), { maxZoom: 13 });
+}
+
+function roll() {
+  const pool = [...visible()];
+  const out = [];
+  while (out.length < 3 && pool.length) out.push(...pool.splice(Math.random() * pool.length | 0, 1));
+  document.getElementById("picked").innerHTML = out.map((e, i) => card(e, true, i)).join("");
+}
+
+function selectStation(label) {
+  const s = STATIONS.find(s => s.label === label);
+  if (!s) return;
+  ORIGIN = { ...s };
+  if (marker) marker.setLatLng([ORIGIN.lat, ORIGIN.lon]);
+  render();
+  if (map && circle) map.fitBounds(circle.getBounds(), { maxZoom: 13 });
+}
+
+let map, marker;
+function initMap() {
+  map = L.map("map", { scrollWheelZoom: true }).setView([ORIGIN.lat, ORIGIN.lon], 11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18
+  }).addTo(map);
+  marker = L.marker([ORIGIN.lat, ORIGIN.lon]).addTo(map);
+  map.on("click", ev => {
+    ORIGIN = { lat: ev.latlng.lat, lon: ev.latlng.lng,
+      label: `선택한 위치(${ev.latlng.lat.toFixed(3)}, ${ev.latlng.lng.toFixed(3)})` };
+    marker.setLatLng(ev.latlng);
+    render();
+  });
+}
+
+if (typeof L !== "undefined") initMap();
+render();
+</script></body></html>
