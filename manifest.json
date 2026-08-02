@@ -1,0 +1,14 @@
+{
+  "name": "이번 주말 뭐하지",
+  "short_name": "주말뭐하지",
+  "description": "서울 주말 문화행사 랜덤 추천",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbfaf8",
+  "theme_color": "#6270c7",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
