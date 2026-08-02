@@ -5,8 +5,10 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
+@font-face{font-family:"SeoulNamsan";font-weight:400;font-display:swap;
+  src:url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/SeoulNamsanM.woff") format("woff")}
 :root{--bg:#fbfaf8;--card:#fff;--fg:#1a1a1a;--dim:#6b6b6b;--line:#e6e3dd;--accent:#6270c7;--chip:#f0ede8;
-  --font:"서울남산체","SeoulNamsan","SeoulNamsanM","NanumSquare","NanumSquareRound","고운돋움","Goun Dotum",-apple-system,"Segoe UI","Malgun Gothic",sans-serif}
+  --font:"SeoulNamsan","NanumSquare","NanumSquareRound","고운돋움","Goun Dotum",-apple-system,"Segoe UI","Malgun Gothic",sans-serif}
 @media(prefers-color-scheme:dark){:root{--bg:#14140f;--card:#1e1e19;--fg:#f0eee9;--dim:#9a978f;--line:#32322b;--accent:#9aa8f5;--chip:#2a2a23}}
 *{box-sizing:border-box;font-family:var(--font)}
 body{margin:0;background:var(--bg);color:var(--fg);font-size:16px;line-height:1.55}
@@ -20,9 +22,13 @@ h1{font-size:30px;margin:0 0 6px;letter-spacing:-.02em}
 #picked:empty{display:none}
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin:34px 0 20px;
   padding-top:26px;border-top:1px solid var(--line)}
-select{background:var(--chip);color:var(--fg);border:1px solid var(--line);border-radius:8px;
-  padding:7px 10px;font-family:inherit;font-size:14px}
 label.tog{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--dim);cursor:pointer}
+.sortbtns{display:flex;gap:8px;flex-wrap:wrap}
+.sortbtns button{background:var(--chip);color:var(--fg);border:none;border-radius:999px;
+  padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+  box-shadow:0 1px 3px rgba(0,0,0,.08);transition:transform .12s}
+.sortbtns button:hover{transform:translateY(-1px)}
+.sortbtns button.on{background:var(--accent);color:#fff}
 #grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 .c{background:var(--tint,var(--card));border:1px solid var(--line);border-radius:10px;overflow:hidden;
   display:flex;flex-direction:column;position:relative}
@@ -88,11 +94,7 @@ label.tog{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--dim
 <div id="picked"></div>
 <div class="bar">
   <label class="tog"><input type="checkbox" id="freeonly" onchange="render()">무료만</label>
-  <select id="sort" onchange="render()">
-    <option value="dist">가까운 순</option>
-    <option value="deadline">마감임박순</option>
-    <option value="recent">최근순</option>
-  </select>
+  <span id="sortbtns" class="sortbtns"></span>
 </div>
 <div id="grid"></div>
 </div><script>
@@ -124,6 +126,12 @@ function computeWeekends(days) {
 }
 const WEEKENDS = computeWeekends(30);
 let selectedWeekend = 0; // WEEKENDS의 인덱스, -1이면 전체(한달) 표시
+let SORT = "dist";
+const SORT_LABELS = { dist: "가까운 순", deadline: "마감임박순", recent: "최근순" };
+function selectSort(v) {
+  SORT = v;
+  render();
+}
 
 function parseWhen(when) {
   if (!when) return null;
@@ -218,7 +226,7 @@ function visible() {
     .map(e => ({ ...e, dist: e.lat == null ? null : haversine(ORIGIN.lat, ORIGIN.lon, e.lat, e.lon) }))
     .filter(e => e.dist === null || e.dist <= RADIUS_KM)
     .filter(e => !free || e.free);
-  const sort = document.getElementById("sort").value;
+  const sort = SORT;
   if (sort === "deadline") {
     list = [...list].sort((a, b) => {
       const ra = parseWhen(a.when), rb = parseWhen(b.when);
@@ -274,6 +282,9 @@ function render() {
     const label = i === 0 ? "이번주말" : i === 1 ? "다음주말" : `${w.sat.getMonth() + 1}/${w.sat.getDate()}`;
     return `<button class="${selectedWeekend === i ? "on" : ""}" onclick="selectWeekend(${i})">${label}</button>`;
   }).join("") + `<button class="${selectedWeekend === -1 ? "on" : ""}" onclick="selectWeekend(-1)">전체(한달)</button>`;
+  document.getElementById("sortbtns").innerHTML = Object.keys(SORT_LABELS).map(v =>
+    `<button class="${SORT === v ? "on" : ""}" onclick="selectSort('${v}')">${SORT_LABELS[v]}</button>`
+  ).join("");
   syncMapCircle();
 }
 
