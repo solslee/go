@@ -30,6 +30,14 @@ CAT_MAP = {
     "교육/체험": "교육/체험", "기타": "기타",
 }
 
+FUNSEOUL_BASE = "https://festival.seoul.go.kr"
+FUNSEOUL_CALENDAR_URL = FUNSEOUL_BASE + "/festival/year/loadMap.do"
+FUNSEOUL_DETAIL_URL = FUNSEOUL_BASE + "/festival/main/mo/monthDetailList.do"
+FUNSEOUL_VIEW_URL = FUNSEOUL_BASE + "/festival/main/festivalView.do?festacode={code}"
+FUNSEOUL_CAT_MAP = {
+    "문화/예술": "축제-문화/예술", "관광/체육": "스포츠", "기타": "축제-기타",
+}
+
 
 def upcoming_weekend(today):
     """다가오는(또는 진행 중인) 토요일, 일요일."""
@@ -149,11 +157,74 @@ def build_event(item, detail):
     }
 
 
+def fetch_funseoul_events(sat, sun):
+    """펀서울(festival.seoul.go.kr) 캘린더에서 이번 주말에 걸리는 축제 코드를 찾아 상세정보를 가져온다."""
+    try:
+        calendar_html = fetch(FUNSEOUL_CALENDAR_URL)
+    except Exception:
+        return []
+
+    codes = set()
+    for day in (sat, sun):
+        pattern = r'data-event-month="{}" data-event-date="{}" data-event-code="([^"]*)"'.format(
+            day.month, day.day)
+        for m in re.findall(pattern, calendar_html):
+            codes.update(c for c in m.split(",") if c)
+    if not codes:
+        return []
+
+    try:
+        body = fetch(FUNSEOUL_DETAIL_URL, {"items": ",".join(sorted(codes))})
+        results = json.loads(body)
+    except Exception:
+        return []
+
+    events = []
+    for r in results or []:
+        fee = (r.get("use_fee") or "").strip()
+        img_id = r.get("main_img") or ""
+        events.append({
+            "title": (r.get("festa_name") or "").strip(),
+            "cat": FUNSEOUL_CAT_MAP.get(r.get("subjname"), "축제-기타"),
+            "gu": r.get("gname") or "",
+            "place": r.get("place") or "",
+            "when": "{}~{}".format(r["strt_date"], r["end_date"]) if r.get("strt_date") else (r.get("time") or ""),
+            "target": r.get("use_trgt") or "",
+            "fee": fee or "요금 정보 없음",
+            "free": bool(fee) and ("무료" in fee),
+            "img": (FUNSEOUL_BASE + "/cmmn/file/getImage.do?isThumb=Y&atchFileId=" + img_id) if img_id else "",
+            "link": r.get("homepage") or FUNSEOUL_VIEW_URL.format(code=r.get("festa_code")),
+            "ticket": "",
+            "lat": None,
+            "lon": None,
+        })
+    return events
+
+
+def normalize_title(t):
+    t = re.sub(r"\[[^\]]*\]", "", t)          # [주최기관] 같은 대괄호 제거
+    t = re.sub(r"20\d\d", "", t)               # 연도 제거
+    return re.sub(r"[^\w가-힣]", "", t).lower()
+
+
+def merge_events(primary, extra):
+    """primary(문화포털) 기준으로 extra(펀서울)에서 중복(같은 행사)만 걸러내고 합친다."""
+    seen = {normalize_title(e["title"]) for e in primary}
+    merged = list(primary)
+    for e in extra:
+        key = normalize_title(e["title"])
+        if not key or any(key in s or s in key for s in seen):
+            continue
+        seen.add(key)
+        merged.append(e)
+    return merged
+
+
 def build_sub(sat, sun, count):
     return (
         "{}(토) ~ {}(일) · <span id=\"originText\">가락시장역</span> 기준 "
         "<span id=\"radiusText\">20</span>km 안 · 총 <span id=\"count\">{}</span>개 · "
-        "서울문화포털 자동 수집(로그인/API 미사용)"
+        "서울문화포털·펀서울 자동 수집(로그인/API 미사용)"
     ).format(sat.strftime("%m월 %d일"), sun.strftime("%m월 %d일"), count)
 
 
@@ -163,7 +234,7 @@ def main():
     print("{} ~ {} 행사 찾는 중...".format(sdate, edate))
 
     items = fetch_weekend_list(sdate, edate)
-    print("{}건 발견, 상세정보 가져오는 중...".format(len(items)))
+    print("문화포털 {}건 발견, 상세정보 가져오는 중...".format(len(items)))
 
     events = []
     for i, item in enumerate(items):
@@ -172,6 +243,11 @@ def main():
         if i % 20 == 0:
             print("  {}/{}".format(i, len(items)))
         time.sleep(DETAIL_DELAY)
+
+    funseoul_events = fetch_funseoul_events(sat, sun)
+    print("펀서울 {}건 발견".format(len(funseoul_events)))
+    events = merge_events(events, funseoul_events)
+    print("중복 제거 후 총 {}건".format(len(events)))
 
     with open(TEMPLATE_FILE, encoding="utf-8") as f:
         template = f.read()
