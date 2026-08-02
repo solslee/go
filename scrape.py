@@ -38,6 +38,15 @@ FUNSEOUL_CAT_MAP = {
     "문화/예술": "축제-문화/예술", "관광/체육": "스포츠", "기타": "축제-기타",
 }
 
+# 송파구청 보도자료: 문화포털/펀서울에 안 잡히는 구청 자체 행사(물놀이장 개장 등)를
+# 뭉뚱그린 정보로라도 건져온다. 날짜/요금이 정확하지 않을 수 있어 링크로 원문을 보게 한다.
+SONGPA_BASE = "https://www.songpa.go.kr"
+SONGPA_LIST_URL = SONGPA_BASE + "/www/selectBbsNttList.do?bbsNo=96&key=2781&pageIndex={page}"
+SONGPA_PAGES = 5
+SONGPA_KEYWORDS = re.compile(
+    "축제|행사|체험|전시|공연|페스티벌|마켓|장터|물놀이|콘서트|박람회|야시장|"
+    "벚꽃|단풍|플리마켓|바자회|나눔장터|개장|운영개시")
+
 
 def upcoming_weekend(today):
     """다가오는(또는 진행 중인) 토요일, 일요일."""
@@ -213,6 +222,60 @@ def fetch_funseoul_events(weekends):
     return events
 
 
+def songpa_guess_cat(title):
+    if "전시" in title:
+        return "전시/미술"
+    if "축제" in title:
+        return "축제-기타"
+    if "공연" in title or "콘서트" in title:
+        return "콘서트"
+    if "체험" in title:
+        return "교육/체험"
+    return "기타"
+
+
+def fetch_songpa_events(max_pages=SONGPA_PAGES):
+    """송파구청 보도자료 게시판에서 행사성 제목만 골라 뭉뚱그린 정보로 가져온다.
+
+    날짜/장소/요금이 정확하지 않을 수 있어 링크를 눌러 원문을 확인하게 한다.
+    """
+    events = []
+    for page in range(1, max_pages + 1):
+        try:
+            body = fetch(SONGPA_LIST_URL.format(page=page))
+        except Exception:
+            break
+        rows = re.findall(r"<tr>(.*?)</tr>", body, re.S)
+        if not rows:
+            break
+        for row in rows:
+            m_link = re.search(r'<a href="([^"]+)"[^>]*>(.*?)</a>', row, re.S)
+            if not m_link:
+                continue
+            href = html.unescape(m_link.group(1))
+            title = html.unescape(re.sub(r"<[^>]+>", "", m_link.group(2))).strip()
+            if not title or not SONGPA_KEYWORDS.search(title):
+                continue
+            m_ntt = re.search(r"nttNo=(\d+)", href)
+            events.append({
+                "id": "s" + (m_ntt.group(1) if m_ntt else str(abs(hash(href)))),
+                "title": title,
+                "cat": songpa_guess_cat(title),
+                "gu": "송파구",
+                "place": "",
+                "when": "",
+                "target": "",
+                "fee": "정보 없음(링크 확인)",
+                "free": False,
+                "img": "",
+                "link": urllib.parse.urljoin(SONGPA_BASE + "/www/", href),
+                "ticket": "",
+                "lat": 37.5145,
+                "lon": 127.1066,
+            })
+    return events
+
+
 def normalize_title(t):
     t = re.sub(r"\[[^\]]*\]", "", t)          # [주최기관] 같은 대괄호 제거
     t = re.sub(r"20\d\d", "", t)               # 연도 제거
@@ -238,7 +301,7 @@ def build_sub(weekends, count):
     return (
         "{} ~ {} (주말 {}개) · <span id=\"originText\">가락시장역</span> 기준 "
         "<span id=\"radiusText\">20</span>km 안 · 총 <span id=\"count\">{}</span>개 · "
-        "서울문화포털·펀서울 자동 수집(로그인/API 미사용)"
+        "서울문화포털·펀서울·송파구청 자동 수집(로그인/API 미사용)"
     ).format(first_sat.strftime("%m월 %d일"), last_sun.strftime("%m월 %d일"), len(weekends), count)
 
 
@@ -264,6 +327,10 @@ def main():
     funseoul_events = fetch_funseoul_events(weekends)
     print("펀서울 {}건 발견".format(len(funseoul_events)))
     events = merge_events(events, funseoul_events)
+
+    songpa_events = fetch_songpa_events()
+    print("송파구청 보도자료 {}건 발견".format(len(songpa_events)))
+    events = merge_events(events, songpa_events)
     print("중복 제거 후 총 {}건".format(len(events)))
 
     with open(TEMPLATE_FILE, encoding="utf-8") as f:

@@ -238,7 +238,7 @@ function card(e, hl, i) {
   return `<div class="c${hl ? " hl" : ""}" style="--tint:${PALETTE[i % PALETTE.length]}">${dismiss}${media}<div class="body">
     <div class="tags">${tags}</div><h3>${e.title}</h3>
     <p class="meta">${[e.gu, e.place].filter(Boolean).join(" · ")}</p>
-    <p class="meta">${dist} · ${e.when}</p>${route}${link}</div></div>`;
+    <p class="meta">${[dist, e.when].filter(Boolean).join(" · ")}</p>${route}${link}</div></div>`;
 }
 
 function kakaoRouteUrl(e) {
