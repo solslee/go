@@ -51,6 +51,16 @@ def upcoming_weekend(today):
     return sat, sat + timedelta(days=1)
 
 
+def upcoming_weekends_within(today, days=30):
+    """오늘부터 days일 안에 걸리는 토/일 쌍을 전부(이번 주말 포함) 반환."""
+    sat, _ = upcoming_weekend(today)
+    weekends = []
+    while (sat - today).days <= days:
+        weekends.append((sat, sat + timedelta(days=1)))
+        sat += timedelta(days=7)
+    return weekends
+
+
 def fetch(url, data=None):
     body = urllib.parse.urlencode(data).encode() if data is not None else None
     req = urllib.request.Request(url, data=body, headers=HEADERS)
@@ -87,8 +97,8 @@ def parse_list_page(html_text):
     return items
 
 
-def fetch_weekend_list(sdate, edate):
-    seen = {}
+def fetch_weekend_list(sdate, edate, seen):
+    """culture.seoul.go.kr에서 sdate~edate와 겹치는 행사를 긁어 seen(cultcode 기준 dict)에 누적한다."""
     for page in range(1, MAX_PAGES + 1):
         body = fetch(LIST_URL, {"menuNo": "200110", "pageIndex": str(page),
                                  "sdate": sdate, "edate": edate})
@@ -97,7 +107,6 @@ def fetch_weekend_list(sdate, edate):
             break
         for it in items:
             seen[it["cultcode"]] = it
-    return list(seen.values())
 
 
 def parse_detail(cultcode):
@@ -141,6 +150,7 @@ def build_event(item, detail):
     gu_m = re.search(r"([가-힣]+구)", addr)
 
     return {
+        "id": "c" + item["cultcode"],
         "title": item["title"],
         "cat": CAT_MAP.get(item["cat_raw"], item["cat_raw"]),
         "gu": gu_m.group(1) if gu_m else "",
@@ -157,19 +167,20 @@ def build_event(item, detail):
     }
 
 
-def fetch_funseoul_events(sat, sun):
-    """펀서울(festival.seoul.go.kr) 캘린더에서 이번 주말에 걸리는 축제 코드를 찾아 상세정보를 가져온다."""
+def fetch_funseoul_events(weekends):
+    """펀서울(festival.seoul.go.kr) 캘린더에서 주어진 주말들에 걸리는 축제 코드를 찾아 상세정보를 가져온다."""
     try:
         calendar_html = fetch(FUNSEOUL_CALENDAR_URL)
     except Exception:
         return []
 
     codes = set()
-    for day in (sat, sun):
-        pattern = r'data-event-month="{}" data-event-date="{}" data-event-code="([^"]*)"'.format(
-            day.month, day.day)
-        for m in re.findall(pattern, calendar_html):
-            codes.update(c for c in m.split(",") if c)
+    for sat, sun in weekends:
+        for day in (sat, sun):
+            pattern = r'data-event-month="{}" data-event-date="{}" data-event-code="([^"]*)"'.format(
+                day.month, day.day)
+            for m in re.findall(pattern, calendar_html):
+                codes.update(c for c in m.split(",") if c)
     if not codes:
         return []
 
@@ -184,6 +195,7 @@ def fetch_funseoul_events(sat, sun):
         fee = (r.get("use_fee") or "").strip()
         img_id = r.get("main_img") or ""
         events.append({
+            "id": "f" + str(r.get("festa_code")),
             "title": (r.get("festa_name") or "").strip(),
             "cat": FUNSEOUL_CAT_MAP.get(r.get("subjname"), "축제-기타"),
             "gu": r.get("gname") or "",
@@ -220,20 +232,25 @@ def merge_events(primary, extra):
     return merged
 
 
-def build_sub(sat, sun, count):
+def build_sub(weekends, count):
+    first_sat = weekends[0][0]
+    last_sun = weekends[-1][1]
     return (
-        "{}(토) ~ {}(일) · <span id=\"originText\">가락시장역</span> 기준 "
+        "{} ~ {} (주말 {}개) · <span id=\"originText\">가락시장역</span> 기준 "
         "<span id=\"radiusText\">20</span>km 안 · 총 <span id=\"count\">{}</span>개 · "
         "서울문화포털·펀서울 자동 수집(로그인/API 미사용)"
-    ).format(sat.strftime("%m월 %d일"), sun.strftime("%m월 %d일"), count)
+    ).format(first_sat.strftime("%m월 %d일"), last_sun.strftime("%m월 %d일"), len(weekends), count)
 
 
 def main():
-    sat, sun = upcoming_weekend(date.today())
-    sdate, edate = sat.isoformat(), sun.isoformat()
-    print("{} ~ {} 행사 찾는 중...".format(sdate, edate))
+    weekends = upcoming_weekends_within(date.today(), days=30)
+    print("이번 주말 포함 향후 {}개 주말 조회: {}".format(
+        len(weekends), ", ".join("{}~{}".format(s.isoformat(), e.isoformat()) for s, e in weekends)))
 
-    items = fetch_weekend_list(sdate, edate)
+    seen = {}
+    for sat, sun in weekends:
+        fetch_weekend_list(sat.isoformat(), sun.isoformat(), seen)
+    items = list(seen.values())
     print("문화포털 {}건 발견, 상세정보 가져오는 중...".format(len(items)))
 
     events = []
@@ -244,7 +261,7 @@ def main():
             print("  {}/{}".format(i, len(items)))
         time.sleep(DETAIL_DELAY)
 
-    funseoul_events = fetch_funseoul_events(sat, sun)
+    funseoul_events = fetch_funseoul_events(weekends)
     print("펀서울 {}건 발견".format(len(funseoul_events)))
     events = merge_events(events, funseoul_events)
     print("중복 제거 후 총 {}건".format(len(events)))
@@ -253,7 +270,7 @@ def main():
         template = f.read()
 
     data_json = json.dumps(events, ensure_ascii=False).replace("</", r"<\/")
-    out = template.replace("__DATA__", data_json).replace("__SUB__", build_sub(sat, sun, len(events)))
+    out = template.replace("__DATA__", data_json).replace("__SUB__", build_sub(weekends, len(events)))
 
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         f.write(out)
