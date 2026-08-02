@@ -300,7 +300,7 @@ def build_sub(weekends, count):
     last_sun = weekends[-1][1]
     return (
         "{} ~ {} (주말 {}개) · <span id=\"originText\">가락시장역</span> 기준 "
-        "<span id=\"radiusText\">20</span>km 안 · 총 <span id=\"count\">{}</span>개 · "
+        "<span id=\"radiusText\">5</span>km 안 · 총 <span id=\"count\">{}</span>개 · "
         "서울문화포털·펀서울·송파구청 자동 수집(로그인/API 미사용)"
     ).format(first_sat.strftime("%m월 %d일"), last_sun.strftime("%m월 %d일"), len(weekends), count)
 

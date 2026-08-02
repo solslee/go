@@ -78,7 +78,7 @@ label.tog{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--dim
   <div id="map"></div>
   <div class="mapinfo">지도를 클릭하면 그 지점이 새 기준 위치가 됩니다.
     <span id="stations" class="stations"></span>
-    <span class="radius">반경 <b id="radiusLabel">20</b>km
+    <span class="radius">반경 <b id="radiusLabel">5</b>km
       <button class="minus" onclick="adjustRadius(-5)">−5km</button>
       <button class="plus" onclick="adjustRadius(5)">+5km</button>
     </span>
@@ -96,7 +96,7 @@ label.tog{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--dim
 <div id="grid"></div>
 </div><script>
 const EVENTS = __DATA__;
-let RADIUS_KM = 20;
+let RADIUS_KM = 5;
 const STATIONS = [
   { label: "가락시장역", short: "가락", lat: 37.4926, lon: 127.1184 },
   { label: "잠실역", short: "잠실", lat: 37.5133, lon: 127.1001 },
