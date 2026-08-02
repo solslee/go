@@ -2,7 +2,7 @@ name: Update weekend events
 
 on:
   schedule:
-    - cron: "0 21 * * *"   # 매일 21:00 UTC = 06:00 KST(다음날)
+    - cron: "0 15 * * 0"   # 매주 일요일 15:00 UTC = 월요일 00:00 KST(자정)
   workflow_dispatch: {}     # Actions 탭에서 수동 실행 버튼도 사용 가능
 
 permissions:
